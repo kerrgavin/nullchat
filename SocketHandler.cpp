@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <exception>
 #include "SocketHandler.h"
 #include "ServerHandler.h"
 #include "PacketHandler.h"
@@ -52,11 +53,11 @@
         //add one to the working counter for the SocketHandler object
         socket_handler->working++;
         std::vector<uint8_t> buffer(NETWORK_PACKET_SIZE);
+        thread_pool->print(std::cout, "Checking for a network packet\n");
         if((read_size = read(socket_handler->socket, &buffer[0], NETWORK_PACKET_SIZE)) == 0) {
           thread_pool->queue_work(close_socket, socket_handler, server_handler, thread_pool);
         } else {
-          long size = (buffer.at(2) << 24) | (buffer.at(3) << 16) | (buffer.at(4) << 8) | (buffer.at(4));
-          buffer.resize(size);
+
           thread_pool->queue_work(SocketHandler::read_network_packet, buffer, socket_handler, thread_pool);
           //thread_pool->queue_work(SocketHandler::read_data, size - 6, buffer, socket_handler, thread_pool);
         }
@@ -67,21 +68,42 @@
   }
 
   void SocketHandler::read_network_packet(std::vector<uint8_t> network_packet, std::shared_ptr<SocketHandler> socket_handler, MultiTask* thread_pool) {
-    unsigned short packet_id = PacketHandler::toShort(0, &network_packet);
-    unsigned long size = PacketHandler::toLong(2, &network_packet);
-    unsigned short position = PacketHandler::toShort(6, &network_packet);
-    unsigned short data_length = PacketHandler::toShort(8, &network_packet);
+    try {
+      thread_pool->print(std::cout, "Reading in network packet ", network_packet.size(), "\n");
 
-    if ( socket_handler->buffers.find(packet_id) != socket_handler->buffers.end() ) {
-      std::vector<uint8_t> temp;
-      socket_handler->buffers.insert( { packet_id, temp } );
-      socket_handler->buffers.at(packet_id).resize(size);
-    }
+      unsigned short packet_id = PacketHandler::toShort(0, &network_packet);
+      thread_pool->print(std::cout, "Packet ID: ", packet_id, "\n");
+      unsigned long size = PacketHandler::toLong(2, &network_packet);
+      thread_pool->print(std::cout, "Size: ", size, "\n");
+      unsigned short position = PacketHandler::toShort(6, &network_packet);
+      thread_pool->print(std::cout, "Position: ", position, "\n");
+      unsigned short data_length = PacketHandler::toShort(8, &network_packet);
+      thread_pool->print(std::cout, "Data Length: ", data_length, "\n");
 
-    memcpy(&(socket_handler->buffers.at(packet_id))[position], &network_packet[10], data_length);
+      thread_pool->print(std::cout, "Variables set up\n");
 
-    if(position + data_length >= size) {
-      // queue up the client handler to process the completed control packet
+      thread_pool->print(std::cout, socket_handler->buffers.find(packet_id) == socket_handler->buffers.end(), "\n");
+
+      if ( socket_handler->buffers.find(packet_id) == socket_handler->buffers.end() ) {
+        std::vector<uint8_t> temp;
+        socket_handler->buffers.insert( { packet_id, temp } );
+        thread_pool->print(std::cout, "New buffer inserted into map\n");
+        socket_handler->buffers.at(packet_id).resize(size);
+      }
+
+      memcpy(&(socket_handler->buffers.at(packet_id))[position], &network_packet[10], data_length);
+
+      thread_pool->print(std::cout, "Size: ", size, " Read in: ", (position + data_length), "\n");
+
+      if(position + data_length >= size) {
+        // queue up the client handler to process the completed control packet
+        thread_pool->print(std::cout, "Queueing up packet processing\n");
+        thread_pool->queue_work(ClientHandler::process_packet, packet_id, socket_handler, socket_handler->client, thread_pool);
+      }
+      socket_handler->working--;
+    } catch(std::exception& e) {
+      thread_pool->print(std::cout, "Found exception in the read_network_packet function\n");
+      thread_pool->print(std::cout, "Error: ", e.what(), "\n");
     }
   }
 
@@ -92,6 +114,7 @@
   // }
 
   void SocketHandler::send_network_packet(unsigned short data_position, unsigned short packet_id, std::shared_ptr<SocketHandler> socket_handler, ClientHandler* client_handler, MultiTask* thread_pool) {
+    thread_pool->print(std::cout, "Constructing network packet\n");
     std::vector<uint8_t> network_packet(NETWORK_PACKET_SIZE);
     int index = 0;
 
@@ -107,7 +130,13 @@
 
     memcpy(&network_packet[index], &(client_handler->outbound_packets.at(packet_id))[data_position], data_length);
 
+    thread_pool->print(std::cout, "Network packet constructed\n");
+
+    thread_pool->print(std::cout, "Attempting to send data over socket: ", socket_handler->socket, "\n");
+
     send(socket_handler->socket, &network_packet[0], NETWORK_PACKET_SIZE, 0);
+
+    thread_pool->print(std::cout, "Network packet send\n");
 
     data_position += 512;
 

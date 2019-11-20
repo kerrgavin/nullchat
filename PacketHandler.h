@@ -29,6 +29,8 @@ public:
 
   static unsigned long toLong(int index, std::vector<uint8_t>* packet);
 
+  static std::string toString(int index, int length, std::vector<uint8_t>* packet);
+
   static void parse_packet(std::vector<uint8_t>* packet, parsed_packet* parsed);
 
   static void gen_packet(parsed_packet* packet_info, std::vector<uint8_t>* packet);

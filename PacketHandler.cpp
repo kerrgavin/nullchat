@@ -1,4 +1,5 @@
 #include<string>
+#include <cstring>
 #include<vector>
 #include "PacketHandler.h"
 
@@ -27,13 +28,19 @@ int PacketHandler::insertByte(int index, std::string val, std::vector<uint8_t>* 
 }
 
 unsigned short PacketHandler::toShort(int index, std::vector<uint8_t>* packet) {
-  unsigned short value = (packet->at(index) << 8) | (packet->at(index + 1) << 8);
+  unsigned short value = (packet->at(index) << 8) | (packet->at(index + 1));
   return value;
 }
 
 unsigned long PacketHandler::toLong(int index, std::vector<uint8_t>* packet) {
   unsigned long value = (packet->at(index) << 24) | (packet->at(index + 1) << 16) | (packet->at(index + 2) << 8) | (packet->at(index + 3));
   return value;
+}
+
+std::string PacketHandler::toString(int index, int length, std::vector<uint8_t>* packet) {
+  std::string temp;
+  temp.assign(packet->begin() + index, packet->begin() + (index + length));
+  return temp;
 }
 
 void PacketHandler::parse_packet(std::vector<uint8_t>* packet, parsed_packet* parsed) {

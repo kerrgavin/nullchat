@@ -96,6 +96,7 @@
         sd = (*socket)->socket;
 
         if ((*socket)->socket==-1 && (*socket)->working <= 0 && (*socket)->checks <= 0) {
+          ClientHandler::remove_socket(*socket, (*socket)->client);
           client_sockets.erase(socket);
           break;
         }
@@ -123,7 +124,7 @@
       if(server_handler->client_sockets.size() < server_handler->max_clients) {
         std::string ip(inet_ntoa(server_handler->address.sin_addr));
         server_handler->client_sockets.emplace_back(std::make_shared<SocketHandler>(new_socket, ip));
-        ChatRoom::register_client(server_handler->chat_room, server_handler->client_sockets.back()->client);
+        server_handler->client_sockets.back()->client->socket_handler = server_handler->client_sockets.back();
         thread_pool->queue_work(ChatRoom::register_client, server_handler->chat_room, server_handler->client_sockets.back()->client);
         thread_pool->print(std::cout, "Added new socket", "\n");
       }

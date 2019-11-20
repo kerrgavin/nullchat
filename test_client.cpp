@@ -5,13 +5,12 @@
 #include <chrono>
 #include <mutex>
 #include "MultiTask.h"
-#include "ServerHandler.h"
-
+#include "ClientStub.h"
 
 int main(int argc, char const *argv[]) {
   std::cout << "Starting program" << std::endl;
   MultiTask m(2);
-  ServerHandler s(8888, 30, &m);
-  s.start();
+  ClientStub c(8888, &m);
+  c.start();
   return 0;
 }
